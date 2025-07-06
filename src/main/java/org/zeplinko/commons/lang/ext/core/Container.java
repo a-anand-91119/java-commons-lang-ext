@@ -3,6 +3,8 @@ package org.zeplinko.commons.lang.ext.core;
 /**
  * A simple container class that holds a single immutable value.
  *
+ * @author Astha&nbsp;Singh
+ *
  * @param <T> The type of the value stored in the container.
  */
 @SuppressWarnings("LombokGetterMayBeUsed")
@@ -11,7 +13,7 @@ public class Container<T> {
     /**
      * The stored value of type {@code T}.
      */
-    private final T value;
+    protected T value;
 
     /**
      * Constructs a new {@code Container} with the specified value.
@@ -30,5 +32,16 @@ public class Container<T> {
      */
     public T getValue() {
         return this.value;
+    }
+
+    /**
+     * Static factory method to create a {@code Container} instance.
+     *
+     * @param value The value to be stored in the container.
+     * @param <T>   The type of the value.
+     * @return A new {@code Container} containing the given value.
+     */
+    public static <T> Container<T> of(T value) {
+        return new Container<>(value);
     }
 }
