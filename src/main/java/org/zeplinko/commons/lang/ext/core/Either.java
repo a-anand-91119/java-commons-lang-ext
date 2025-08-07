@@ -34,7 +34,7 @@ public class Either<L, R> {
      * @return An {@code Either} containing the left value.
      */
     public static <L, R> Either<L, R> left(L left) {
-        Container<L> leftContainer = new Container<>(left);
+        Container<L> leftContainer = Container.of(left);
         return new Either<>(leftContainer, null);
     }
 
@@ -47,7 +47,7 @@ public class Either<L, R> {
      * @return An {@code Either} containing the right value.
      */
     public static <L, R> Either<L, R> right(R right) {
-        Container<R> rightContainer = new Container<>(right);
+        Container<R> rightContainer = Container.of(right);
         return new Either<>(null, rightContainer);
     }
 
