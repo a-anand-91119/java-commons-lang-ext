@@ -1,5 +1,7 @@
 package org.zeplinko.commons.lang.ext.core;
 
+import java.util.Objects;
+
 /**
  * A simple container class that holds a single immutable value.
  *
@@ -43,5 +45,36 @@ public class Container<T> {
      */
     public static <T> Container<T> of(T value) {
         return new Container<>(value);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int hashCode() {
+        return Objects.hash(getValue());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (!(o instanceof Container)) {
+            return false;
+        }
+        Container<?> other = (Container<?>) o;
+        return Objects.equals(this.getValue(), other.getValue());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String toString() {
+        return "Container[" + getValue() + "]";
     }
 }

@@ -1,10 +1,52 @@
 package org.zeplinko.commons.lang.ext.core;
 
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+
+import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class EitherTest {
+
+    private static Stream<Arguments> provideHashcodeCoverageCases() {
+        return Stream.of(
+                Arguments.of(Either.left(2), Objects.hash(true, 2)),
+                Arguments.of(Either.right(2), Objects.hash(false, 2))
+        );
+    }
+
+    private static Stream<Arguments> provideEqualityCases() {
+        Either<Integer, String> leftEither = Either.left(2);
+        Either<String, Integer> rightEither = Either.right(2);
+        return Stream.of(
+                Arguments.of(leftEither, leftEither, true),
+                Arguments.of(leftEither, Either.left(2), true),
+                Arguments.of(leftEither, Either.left(3), false),
+                Arguments.of(leftEither, null, false),
+                Arguments.of(rightEither, rightEither, true),
+                Arguments.of(rightEither, Either.right(2), true),
+                Arguments.of(rightEither, Either.right(3), false),
+                Arguments.of(rightEither, null, false),
+                Arguments.of(leftEither, rightEither, false),
+                Arguments.of(rightEither, leftEither, false),
+                Arguments.of(leftEither, Optional.of(2), false)
+        );
+    }
+
+    private static Stream<Arguments> provideToStringCases() {
+        return Stream.of(
+                Arguments.of(Either.left(2), "Either.Left[2]"),
+                Arguments.of(Either.left(null), "Either.Left[null]"),
+                Arguments.of(Either.right(2), "Either.Right[2]"),
+                Arguments.of(Either.right(null), "Either.Right[null]")
+        );
+    }
 
     @Test
     void test_givenNonNullData_whenLeftIsCalled_thenLeftEitherIsCreated() {
@@ -144,4 +186,34 @@ class EitherTest {
         assertNull(result.getRight());
     }
 
+    @MethodSource("provideHashcodeCoverageCases")
+    @ParameterizedTest
+    void test_givenEither_whenHashcodeIsInvoked_thenRespectiveOutcomeIsReturned(
+            Either<?, ?> either,
+            int expectedHashcode
+    ) {
+        int actualHashcode = either.hashCode();
+        Assertions.assertEquals(expectedHashcode, actualHashcode);
+    }
+
+    @MethodSource("provideEqualityCases")
+    @ParameterizedTest
+    void test_givenEither_whenEqualsIsInvoked_thenRespectiveOutcomeIsReturned(
+            Either<?, ?> either,
+            Object object,
+            boolean expectedIsEqual
+    ) {
+        boolean actualIsEquals = either.equals(object);
+        Assertions.assertEquals(expectedIsEqual, actualIsEquals);
+    }
+
+    @MethodSource("provideToStringCases")
+    @ParameterizedTest
+    void test_givenEither_whenToStringIsInvoked_thenRespectiveOutcomeIsReturned(
+            Either<?, ?> either,
+            String expectedToString
+    ) {
+        String actualToString = either.toString();
+        Assertions.assertEquals(expectedToString, actualToString);
+    }
 }
