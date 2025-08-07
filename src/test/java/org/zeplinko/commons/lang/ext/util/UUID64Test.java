@@ -56,6 +56,16 @@ class UUID64Test {
         );
     }
 
+    private static Stream<Arguments> provideUUID64ComparisonCases() {
+        return Stream.of(
+                Arguments.of(new UUID64(5, 1), new UUID64(2, 1), 1),
+                Arguments.of(new UUID64(5, 1), new UUID64(8, 1), -1),
+                Arguments.of(new UUID64(5, 8), new UUID64(5, 3), 1),
+                Arguments.of(new UUID64(5, 3), new UUID64(5, 8), -1),
+                Arguments.of(new UUID64(5, 8), new UUID64(5, 8), 0)
+        );
+    }
+
     @RepeatedTest(1000)
     void test_givenRandomUUID64_whenReconstructedUsingId_thenEquivalentUUID64GetsCreated() {
         UUID64 originalUUID64 = UUID64.randomUUID();
@@ -174,5 +184,16 @@ class UUID64Test {
         Object uuid1 = UUID64.randomUUID();
         Object object2 = new Object();
         assertNotEquals(uuid1, object2);
+    }
+
+    @MethodSource("provideUUID64ComparisonCases")
+    @ParameterizedTest
+    void test_givenTwoUUIDs_whenCompared_thenRespectiveOutcomeIsReturned(
+            UUID64 uuid1,
+            UUID64 uuid2,
+            int expectedOutcome
+    ) {
+        int actualOutcome = uuid1.compareTo(uuid2);
+        assertEquals(expectedOutcome, actualOutcome);
     }
 }
