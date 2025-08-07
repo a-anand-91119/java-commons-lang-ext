@@ -42,14 +42,14 @@ class ContainerTest {
     @Test
     void test_givenNonNullValue_whenGetValueIsCalled_thenCorrectValueIsReturned() {
         String data = "test value";
-        Container<String> container = new Container<>(data);
+        Container<String> container = Container.of(data);
 
         assertSame(data, container.getValue());
     }
 
     @Test
     void test_givenNullValue_whenGetValueIsCalled_thenNullIsReturned() {
-        Container<String> container = new Container<>(null);
+        Container<String> container = Container.of(null);
 
         assertNull(container.getValue());
     }
@@ -57,7 +57,7 @@ class ContainerTest {
     @Test
     void test_givenIntegerValue_whenGetValueIsCalled_thenCorrectValueIsReturned() {
         Integer data = 123;
-        Container<Integer> container = new Container<>(data);
+        Container<Integer> container = Container.of(data);
 
         assertEquals(123, container.getValue());
     }
@@ -65,7 +65,7 @@ class ContainerTest {
     @Test
     void test_givenCustomObjectValue_whenGetValueIsCalled_thenCorrectObjectIsReturned() {
         MyCustomClass customObject = new MyCustomClass("custom value");
-        Container<MyCustomClass> container = new Container<>(customObject);
+        Container<MyCustomClass> container = Container.of(customObject);
 
         assertSame(customObject, container.getValue());
     }

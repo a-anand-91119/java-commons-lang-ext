@@ -20,8 +20,11 @@ public class Container<T> {
     /**
      * Constructs a new {@code Container} with the specified value.
      *
+     * @deprecated Instead use {@link Container#of(Object)}
+     *
      * @param value The value to be stored in the container. Can be {@code null}.
      */
+    @Deprecated
     public Container(T value) {
         this.value = value;
     }
