@@ -2,15 +2,54 @@ package org.zeplinko.commons.lang.ext.core;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Callable;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class TryTest {
+    private static Stream<Arguments> provideHashcodeCoverageCases() {
+        RuntimeException runtimeException = new RuntimeException();
+        return Stream.of(
+                Arguments.of(Try.success(2), Objects.hash(2, null)),
+                Arguments.of(Try.failure(runtimeException), Objects.hash(null, runtimeException))
+        );
+    }
+
+    private static Stream<Arguments> provideEqualityCases() {
+        Try<Integer> successTry = Try.success(5);
+        RuntimeException runtimeException = new RuntimeException("Hello");
+        Try<Void> failureTry = Try.failure(runtimeException);
+        return Stream.of(
+                Arguments.of(successTry, successTry, true),
+                Arguments.of(successTry, Try.success(5), true),
+                Arguments.of(successTry, Try.success(6), false),
+                Arguments.of(successTry, Optional.of(6), false),
+                Arguments.of(successTry, null, false),
+                Arguments.of(failureTry, failureTry, true),
+                Arguments.of(failureTry, Try.<Void>failure(runtimeException), true),
+                Arguments.of(failureTry, Try.<Void>failure(new IllegalArgumentException()), false),
+                Arguments.of(failureTry, Optional.of(new IllegalArgumentException()), false),
+                Arguments.of(failureTry, null, false),
+                Arguments.of(failureTry, successTry, false)
+        );
+    }
+
+    private static Stream<Arguments> provideToStringCases() {
+        return Stream.of(
+                Arguments.of(Try.success(2), "Try.Success[2]"),
+                Arguments.of(Try.success(null), "Try.Success[null]"),
+                Arguments.of(Try.failure(new RuntimeException()), "Try.Failure[java.lang.RuntimeException]")
+        );
+    }
 
     @Test
     void test_givenNonNullData_whenSuccessIsCalled_thenSuccessTryIsCreated() {
@@ -427,5 +466,33 @@ class TryTest {
 
         assertTrue(result.isFailure());
         assertSame(error, result.getError());
+    }
+
+    @MethodSource("provideHashcodeCoverageCases")
+    @ParameterizedTest
+    void test_givenTry_whenHashcodeIsInvoked_thenRespectiveOutcomeIsReturned(Try<?> tryObject, int expectedHashcode) {
+        int actualHashcode = tryObject.hashCode();
+        Assertions.assertEquals(expectedHashcode, actualHashcode);
+    }
+
+    @MethodSource("provideEqualityCases")
+    @ParameterizedTest
+    void test_givenTry_whenEqualsIsInvoked_thenRespectiveOutcomeIsReturned(
+            Try<?> tryObject,
+            Object object,
+            boolean expectedIsEqual
+    ) {
+        boolean actualIsEquals = tryObject.equals(object);
+        Assertions.assertEquals(expectedIsEqual, actualIsEquals);
+    }
+
+    @MethodSource("provideToStringCases")
+    @ParameterizedTest
+    void test_givenTry_whenToStringIsInvoked_thenRespectiveOutcomeIsReturned(
+            Try<?> tryObject,
+            String expectedToString
+    ) {
+        String actualToString = tryObject.toString();
+        Assertions.assertEquals(expectedToString, actualToString);
     }
 }

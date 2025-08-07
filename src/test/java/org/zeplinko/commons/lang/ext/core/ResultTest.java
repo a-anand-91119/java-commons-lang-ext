@@ -2,10 +2,48 @@ package org.zeplinko.commons.lang.ext.core;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 class ResultTest {
+
+    private static Stream<Arguments> provideHashcodeCoverageCases() {
+        return Stream.of(
+                Arguments.of(Result.success(2), Objects.hash(2, null)),
+                Arguments.of(Result.failure(5), Objects.hash(null, 5))
+        );
+    }
+
+    private static Stream<Arguments> provideEqualityCases() {
+        Result<Integer, String> successResult = Result.success(5);
+        Result<Integer, String> failureResult = Result.failure("abc");
+        return Stream.of(
+                Arguments.of(successResult, successResult, true),
+                Arguments.of(successResult, Result.success(5), true),
+                Arguments.of(successResult, Result.success(6), false),
+                Arguments.of(successResult, Optional.of(6), false),
+                Arguments.of(successResult, null, false),
+                Arguments.of(failureResult, failureResult, true),
+                Arguments.of(failureResult, Result.failure("abc"), true),
+                Arguments.of(failureResult, Result.failure("def"), false),
+                Arguments.of(failureResult, Optional.of("def"), false),
+                Arguments.of(failureResult, null, false),
+                Arguments.of(failureResult, successResult, false)
+        );
+    }
+
+    private static Stream<Arguments> provideToStringCases() {
+        return Stream.of(
+                Arguments.of(Result.success(2), "Result.Success[2]"),
+                Arguments.of(Result.success(null), "Result.Success[null]"),
+                Arguments.of(Result.failure("abc"), "Result.Failure[abc]")
+        );
+    }
 
     @Test
     void testOkResultShouldBeSuccess() {
@@ -559,5 +597,36 @@ class ResultTest {
         Optional<Integer> optional = failure.toOptional();
         Assertions.assertNotNull(optional);
         Assertions.assertFalse(optional.isPresent());
+    }
+
+    @MethodSource("provideHashcodeCoverageCases")
+    @ParameterizedTest
+    void test_givenResult_whenHashcodeIsInvoked_thenRespectiveOutcomeIsReturned(
+            Result<?, ?> result,
+            int expectedHashcode
+    ) {
+        int actualHashcode = result.hashCode();
+        Assertions.assertEquals(expectedHashcode, actualHashcode);
+    }
+
+    @MethodSource("provideEqualityCases")
+    @ParameterizedTest
+    void test_givenResult_whenEqualsIsInvoked_thenRespectiveOutcomeIsReturned(
+            Result<?, ?> result,
+            Object object,
+            boolean expectedIsEqual
+    ) {
+        boolean actualIsEquals = result.equals(object);
+        Assertions.assertEquals(expectedIsEqual, actualIsEquals);
+    }
+
+    @MethodSource("provideToStringCases")
+    @ParameterizedTest
+    void test_givenResult_whenToStringIsInvoked_thenRespectiveOutcomeIsReturned(
+            Result<?, ?> result,
+            String expectedToString
+    ) {
+        String actualToString = result.toString();
+        Assertions.assertEquals(expectedToString, actualToString);
     }
 }

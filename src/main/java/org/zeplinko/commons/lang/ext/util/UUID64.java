@@ -56,7 +56,7 @@ import java.util.UUID;
  * @author Shivam&nbsp;Nagpal
  */
 @Preview
-public class UUID64 {
+public class UUID64 implements java.io.Serializable, Comparable<UUID64> {
     private final long mostSignificantBits;
 
     private final long leastSignificantBits;
@@ -188,6 +188,9 @@ public class UUID64 {
         return encodeToUrlSafeBase64(uuidBytes);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -201,8 +204,21 @@ public class UUID64 {
                 && getLeastSignificantBits() == uuid64.getLeastSignificantBits();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public int hashCode() {
         return Objects.hash(getMostSignificantBits(), getLeastSignificantBits());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int compareTo(UUID64 o) {
+        int mostSignificantBitsComparison = Long.compare(this.getMostSignificantBits(), o.getMostSignificantBits());
+        return mostSignificantBitsComparison != 0 ? mostSignificantBitsComparison
+                : Long.compare(this.getLeastSignificantBits(), o.getLeastSignificantBits());
     }
 }

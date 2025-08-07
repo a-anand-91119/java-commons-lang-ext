@@ -160,4 +160,27 @@ public abstract class AbstractOutcome<D, E> {
     public Optional<D> toOptional() {
         return isFailure() ? Optional.empty() : Optional.ofNullable(this.getData());
     }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int hashCode() {
+        return Objects.hash(getData(), getError());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (!(o instanceof AbstractOutcome)) {
+            return false;
+        }
+        AbstractOutcome<?, ?> other = (AbstractOutcome<?, ?>) o;
+        return Objects.equals(this.getData(), other.getData()) && Objects.equals(this.getError(), other.getError());
+    }
 }

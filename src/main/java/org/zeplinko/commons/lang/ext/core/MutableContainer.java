@@ -53,4 +53,28 @@ public class MutableContainer<T> extends Container<T> {
     public static <T> MutableContainer<T> of(T value) {
         return new MutableContainer<>(value);
     }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean equals(Object o) {
+        return super.equals(o);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String toString() {
+        return "MutableContainer[" + getValue() + "]";
+    }
 }

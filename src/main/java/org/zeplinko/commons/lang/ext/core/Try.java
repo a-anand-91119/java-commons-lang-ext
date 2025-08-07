@@ -290,4 +290,30 @@ public class Try<T> extends AbstractOutcome<T, Exception> {
     public Result<T, Exception> toResult() {
         return this.isFailure() ? Result.failure(this.getError()) : Result.success(this.getData());
     }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean equals(Object o) {
+        return super.equals(o);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String toString() {
+        return isFailure()
+                ? "Try.Failure[" + getError() + "]"
+                : "Try.Success[" + getData() + "]";
+    }
 }

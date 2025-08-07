@@ -1,4 +1,4 @@
-package org.zeplinko.commons.lang.ext.util;
+package org.zeplinko.commons.lang.ext.util.resilience;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
@@ -27,11 +27,11 @@ class RetryableTest {
     @DisplayName("Should return success immediately when result is valid")
     void shouldReturnSuccessImmediatelyWhenResultIsValid() {
         Retryable<Integer> retryable = Retryable.of(() -> 42)
-                .retryUntilResult(r -> r % 2 == 0)
+                .retryUntilResult((context, r) -> r % 2 == 0)
                 .maxRetries(3)
                 .baseDelay(0, TimeUnit.MILLISECONDS);
 
-        Retryable.Outcome<Integer> outcome = retryable.run();
+        Retryable.Outcome<Integer> outcome = retryable.call();
         Assertions.assertTrue(outcome.isSuccess());
         Assertions.assertEquals(42, outcome.getData());
         Assertions.assertEquals(1, outcome.getAttempts());
@@ -50,11 +50,11 @@ class RetryableTest {
     void shouldRetryUntilValidationPasses() {
         AtomicInteger counter = new AtomicInteger();
         Retryable<Integer> retryable = Retryable.of(counter::incrementAndGet)
-                .retryUntilResult(r -> r % 2 == 0)
+                .retryUntilResult((context, r) -> r % 2 == 0)
                 .maxRetries(3)
                 .baseDelay(0, TimeUnit.MILLISECONDS);
 
-        Retryable.Outcome<Integer> outcome = retryable.run();
+        Retryable.Outcome<Integer> outcome = retryable.call();
         Assertions.assertTrue(outcome.isSuccess());
         Assertions.assertEquals(2, outcome.getData());
         Assertions.assertEquals(2, outcome.getAttempts());
@@ -68,25 +68,20 @@ class RetryableTest {
     @Test
     @DisplayName("Should fail after max retries when validation never passes")
     void shouldFailAfterMaxRetriesWhenValidationNeverPasses() {
-        AtomicInteger attemptCounter = new AtomicInteger();
-
-        Retryable<Integer> retryable = Retryable.of(() -> {
-            attemptCounter.incrementAndGet();
-            return 1;
-        })
-                .retryUntilResult(r -> r % 2 == 0)
+        Retryable<Integer> retryable = Retryable.of(() -> 1)
+                .retryUntilResult((context, r) -> r % 2 == 0)
                 .maxRetries(1)
                 .baseDelay(0, TimeUnit.MILLISECONDS);
 
-        Retryable.Outcome<Integer> outcome = retryable.run();
+        Retryable.Outcome<Integer> outcome = retryable.call();
         Assertions.assertFalse(outcome.isSuccess());
-        Assertions.assertTrue(outcome.getError().getMessage().contains("Validation failed"));
+        Assertions.assertTrue(outcome.getError().getMessage().contains("validation failed"));
         Assertions.assertEquals(2, outcome.getAttempts());
         Assertions.assertEquals(
                 Retryable.Outcome.TerminationReason.RETRIES_EXHAUSTED_INVALID_RESULT,
                 outcome.getReason()
         );
-        Assertions.assertEquals(2, attemptCounter.get());
+        Assertions.assertEquals(1, outcome.getInvalidData());
     }
 
     @Test
@@ -100,12 +95,12 @@ class RetryableTest {
             }
             return 100;
         })
-                .retryOnFailure(e -> e instanceof IOException)
-                .retryUntilResult(r -> true)
+                .retryOnFailure((context, e) -> e instanceof IOException)
+                .retryUntilResult((context, r) -> true)
                 .maxRetries(2)
                 .baseDelay(0, TimeUnit.MILLISECONDS);
 
-        Retryable.Outcome<Integer> outcome = retryable.run();
+        Retryable.Outcome<Integer> outcome = retryable.call();
         Assertions.assertTrue(outcome.isSuccess());
         Assertions.assertEquals(100, outcome.getData());
         Assertions.assertEquals(2, outcome.getAttempts());
@@ -124,11 +119,11 @@ class RetryableTest {
             counter.incrementAndGet();
             throw new IllegalArgumentException("IllegalArgumentException");
         })
-                .retryOnFailure(e -> e instanceof IOException)
+                .retryOnFailure((context, e) -> e instanceof IOException)
                 .maxRetries(3)
                 .baseDelay(0, TimeUnit.MILLISECONDS);
 
-        Retryable.Outcome<Integer> outcome = retryable.run();
+        Retryable.Outcome<Integer> outcome = retryable.call();
         Assertions.assertFalse(outcome.isSuccess());
         Assertions.assertInstanceOf(IllegalArgumentException.class, outcome.getError());
         Assertions.assertEquals(1, outcome.getAttempts());
@@ -147,11 +142,11 @@ class RetryableTest {
             counter.incrementAndGet();
             throw new IOException("IOException");
         })
-                .retryOnFailure(e -> e instanceof IOException)
+                .retryOnFailure((context, e) -> e instanceof IOException)
                 .maxRetries(3)
                 .baseDelay(0, TimeUnit.MILLISECONDS);
 
-        Retryable.Outcome<Integer> outcome = retryable.run();
+        Retryable.Outcome<Integer> outcome = retryable.call();
         Assertions.assertFalse(outcome.isSuccess());
         Assertions.assertEquals(4, outcome.getAttempts());
         Assertions.assertEquals(
@@ -165,31 +160,27 @@ class RetryableTest {
     @Test
     @DisplayName("Should attempt requested retries plus initial when validation always fails")
     void shouldAttemptRequestedRetriesPlusInitialWhenValidationAlwaysFails() {
-        AtomicInteger counter = new AtomicInteger();
         int requestedRetries = 5000;
-        Retryable<Integer> retryable = Retryable.of(() -> {
-            counter.incrementAndGet();
-            return 1;
-        })
-                .retryUntilResult(r -> false)
+        Retryable<Integer> retryable = Retryable.of(() -> 1)
+                .retryUntilResult((context, r) -> false)
                 .maxRetries(requestedRetries)
                 .baseDelay(0, TimeUnit.MILLISECONDS);
 
-        Retryable.Outcome<Integer> outcome = retryable.run();
+        Retryable.Outcome<Integer> outcome = retryable.call();
         Assertions.assertFalse(outcome.isSuccess());
         Assertions.assertEquals(requestedRetries + 1, outcome.getAttempts());
         Assertions.assertEquals(
                 Retryable.Outcome.TerminationReason.RETRIES_EXHAUSTED_INVALID_RESULT,
                 outcome.getReason()
         );
-        Assertions.assertEquals(requestedRetries + 1, counter.get());
+        Assertions.assertEquals(1, outcome.getInvalidData());
     }
 
     @Test
     @DisplayName("Should return failure when interrupted during delay")
     void shouldReturnFailureWhenInterruptedDuringDelay() throws InterruptedException {
         Retryable<Integer> retryable = Retryable.of(() -> 1)
-                .retryUntilResult(r -> false)
+                .retryUntilResult((context, r) -> false)
                 .maxRetries(1)
                 .baseDelay(1000, TimeUnit.MILLISECONDS);
 
@@ -200,7 +191,7 @@ class RetryableTest {
         Thread worker = new Thread(() -> {
             started.countDown();
             try {
-                ref.set(retryable.run());
+                ref.set(retryable.call());
             } finally {
                 finished.countDown();
             }
@@ -242,13 +233,13 @@ class RetryableTest {
             int attempt = counter.incrementAndGet();
             return attempt == retries + 1 ? 123 : 0;
         })
-                .retryUntilResult(r -> r == 123)
+                .retryUntilResult((context, r) -> r == 123)
                 .maxRetries(retries)
                 .baseDelay(baseDelay, TimeUnit.MILLISECONDS)
                 .backoff(strategy);
 
         long start = System.nanoTime();
-        retryable.run().toResult();
+        retryable.call().toResult();
         long elapsedMillis = (System.nanoTime() - start) / 1_000_000;
 
         // Allow for some scheduling variance
@@ -313,13 +304,13 @@ class RetryableTest {
             int att = counter.incrementAndGet();
             return att == 2 ? 7 : 0;
         })
-                .retryUntilResult(r -> r == 7)
+                .retryUntilResult((context, r) -> r == 7)
                 .maxRetries(1)
                 .baseDelay(10, TimeUnit.MILLISECONDS)
                 .backoff(tripleBackoff);
 
         long start = System.nanoTime();
-        Retryable.Outcome<Integer> outcome = retryable.run();
+        Retryable.Outcome<Integer> outcome = retryable.call();
         long elapsedMillis = (System.nanoTime() - start) / 1_000_000;
 
         Assertions.assertTrue(outcome.isSuccess());
@@ -351,6 +342,7 @@ class RetryableTest {
     @DisplayName("Should throw exception for null time unit")
     void shouldThrowExceptionForNullTimeUnit() {
         Retryable<Integer> retryable = Retryable.of(() -> 1);
+        // noinspection DataFlowIssue
         Assertions.assertThrows(
                 NullPointerException.class,
                 () -> retryable.baseDelay(1, null)
@@ -377,7 +369,7 @@ class RetryableTest {
         })
                 .maxRetries(5);
 
-        Retryable.Outcome<Integer> outcome = retryable.run();
+        Retryable.Outcome<Integer> outcome = retryable.call();
 
         Assertions.assertFalse(outcome.isSuccess());
         Assertions.assertEquals(1, outcome.getAttempts());
@@ -394,11 +386,11 @@ class RetryableTest {
         AtomicInteger counter = new AtomicInteger();
 
         Retryable<Integer> retryable = Retryable.of(counter::incrementAndGet)
-                .retryUntilResult(r -> false) // always invalid
+                .retryUntilResult((context, r) -> false) // always invalid
                 .maxRetries(2)
                 .baseDelay(0, TimeUnit.MILLISECONDS);
 
-        Retryable.Outcome<Integer> outcome = retryable.run();
+        Retryable.Outcome<Integer> outcome = retryable.call();
 
         Assertions.assertFalse(outcome.isSuccess());
         Assertions.assertEquals(3, outcome.getAttempts());
@@ -422,11 +414,11 @@ class RetryableTest {
                 return 1; // Will fail validation
             }
         })
-                .retryUntilResult(r -> r == 100)
+                .retryUntilResult((context, r) -> r == 100)
                 .baseDelay(0, TimeUnit.MILLISECONDS);
 
         // First run - should fail (odd attempt)
-        Retryable.Outcome<Integer> outcome1 = retryable.run();
+        Retryable.Outcome<Integer> outcome1 = retryable.call();
         Assertions.assertFalse(outcome1.isSuccess());
         Assertions.assertEquals(1, outcome1.getAttempts());
         Assertions.assertEquals(
@@ -435,7 +427,7 @@ class RetryableTest {
         );
 
         // Second run - should succeed (even attempt)
-        Retryable.Outcome<Integer> outcome2 = retryable.run();
+        Retryable.Outcome<Integer> outcome2 = retryable.call();
         Assertions.assertTrue(outcome2.isSuccess());
         Assertions.assertEquals(100, outcome2.getData());
         Assertions.assertEquals(1, outcome2.getAttempts());
@@ -445,7 +437,7 @@ class RetryableTest {
         );
 
         // Third run - should fail again (odd attempt)
-        Retryable.Outcome<Integer> outcome3 = retryable.run();
+        Retryable.Outcome<Integer> outcome3 = retryable.call();
         Assertions.assertFalse(outcome3.isSuccess());
         Assertions.assertEquals(1, outcome3.getAttempts());
         Assertions.assertEquals(
@@ -473,7 +465,7 @@ class RetryableTest {
             }
             return "Success on attempt " + attempt;
         })
-                .retryOnFailure(e -> e instanceof IOException)
+                .retryOnFailure((context, e) -> e instanceof IOException)
                 .maxRetries(2)
                 .baseDelay(1, TimeUnit.MILLISECONDS);
 
@@ -510,7 +502,7 @@ class RetryableTest {
             }
             return 42;
         })
-                .retryUntilResult(r -> r == 42)
+                .retryUntilResult((context, r) -> r == 42)
                 .maxRetries(3)
                 .baseDelay(1, TimeUnit.MILLISECONDS);
 
@@ -538,7 +530,7 @@ class RetryableTest {
 
     @Test
     @DisplayName("Should handle concurrent execution safely with separate retryable instances")
-    void shouldHandleConcurrentExecutionSafelyWithSeparateRetryableInstances() throws Exception {
+    void shouldHandleConcurrentExecutionSafelyWithSeparateRetryableInstances() {
         final int threadCount = 10;
         final int executionsPerThread = 5;
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
@@ -608,11 +600,11 @@ class RetryableTest {
                     throw new RuntimeException("Simulated failure");
                 }
             })
-                    .retryOnFailure(e -> e instanceof RuntimeException)
+                    .retryOnFailure((context, e) -> e instanceof RuntimeException)
                     .maxRetries(2)
                     .baseDelay(1, TimeUnit.MILLISECONDS);
 
-            outcomes.add(retryable.run());
+            outcomes.add(retryable.call());
         }
         return outcomes;
     }
@@ -626,14 +618,14 @@ class RetryableTest {
             taskCounter.incrementAndGet();
             return 42;
         })
-                .retryUntilResult(r -> {
+                .retryUntilResult((context, r) -> {
                     throw new IllegalStateException("Predicate logic error");
                 })
                 .maxRetries(3);
 
         IllegalStateException resultPredicateException = Assertions.assertThrows(
                 IllegalStateException.class,
-                retryableWithBadResultPredicate::run
+                retryableWithBadResultPredicate::call
         );
         Assertions.assertEquals("Predicate logic error", resultPredicateException.getMessage());
         Assertions.assertEquals(1, taskCounter.get());
@@ -647,95 +639,17 @@ class RetryableTest {
             taskCounter.incrementAndGet();
             throw new IOException("Task failure");
         })
-                .retryOnFailure(e -> {
+                .retryOnFailure((context, e) -> {
                     throw new IllegalArgumentException("Exception predicate logic error");
                 })
                 .maxRetries(3);
 
         IllegalArgumentException exceptionPredicateException = Assertions.assertThrows(
                 IllegalArgumentException.class,
-                retryableWithBadExceptionPredicate::run
+                retryableWithBadExceptionPredicate::call
         );
         Assertions.assertEquals("Exception predicate logic error", exceptionPredicateException.getMessage());
         Assertions.assertEquals(1, taskCounter.get());
-    }
-
-    @Test
-    @DisplayName("Should not retry when exception matches noRetryExceptionPredicate predicate")
-    void shouldNotRetryWhenExceptionMatchesNoRetryOnFailure() {
-        AtomicInteger counter = new AtomicInteger();
-
-        Retryable<Integer> retryable = Retryable.<Integer>of(() -> {
-            counter.incrementAndGet();
-            throw new IllegalArgumentException("Should not retry this");
-        })
-                .noRetryOnFailure(e -> e instanceof IllegalArgumentException)
-                .maxRetries(3)
-                .baseDelay(0, TimeUnit.MILLISECONDS);
-
-        Retryable.Outcome<Integer> outcome = retryable.run();
-
-        Assertions.assertFalse(outcome.isSuccess());
-        Assertions.assertEquals(1, outcome.getAttempts());
-        Assertions.assertEquals(
-                Retryable.Outcome.TerminationReason.ABORTED_SKIP_RETRY_EXCEPTION,
-                outcome.getReason()
-        );
-        Assertions.assertInstanceOf(IllegalArgumentException.class, outcome.getError());
-        Assertions.assertEquals("Should not retry this", outcome.getError().getMessage());
-        Assertions.assertEquals(1, counter.get());
-    }
-
-    @Test
-    @DisplayName("Should retry when exception does not match noRetryExceptionPredicate predicate")
-    void shouldRetryWhenExceptionDoesNotMatchNoRetryOnFailure() {
-        AtomicInteger counter = new AtomicInteger();
-
-        Retryable<Integer> retryable = Retryable.<Integer>of(() -> {
-            counter.incrementAndGet();
-            throw new IOException("Should retry this");
-        })
-                .noRetryOnFailure(e -> e instanceof IllegalArgumentException)
-                .retryOnFailure(e -> e instanceof IOException)
-                .maxRetries(2)
-                .baseDelay(0, TimeUnit.MILLISECONDS);
-
-        Retryable.Outcome<Integer> outcome = retryable.run();
-
-        Assertions.assertFalse(outcome.isSuccess());
-        Assertions.assertEquals(3, outcome.getAttempts());
-        Assertions.assertEquals(
-                Retryable.Outcome.TerminationReason.RETRIES_EXHAUSTED_RETRYABLE_EXCEPTION,
-                outcome.getReason()
-        );
-        Assertions.assertInstanceOf(IOException.class, outcome.getError());
-        Assertions.assertEquals(3, counter.get());
-    }
-
-    @Test
-    @DisplayName("Should prioritize noRetryExceptionPredicate over retryOnFailure when both match")
-    void shouldPrioritizeNoRetryExceptionPredicateOverRetryOnFailureWhenBothMatch() {
-        AtomicInteger counter = new AtomicInteger();
-
-        Retryable<Integer> retryable = Retryable.<Integer>of(() -> {
-            counter.incrementAndGet();
-            throw new RuntimeException("Both predicates match");
-        })
-                .retryOnFailure(e -> e instanceof RuntimeException)
-                .noRetryOnFailure(e -> e instanceof RuntimeException)
-                .maxRetries(3)
-                .baseDelay(0, TimeUnit.MILLISECONDS);
-
-        Retryable.Outcome<Integer> outcome = retryable.run();
-
-        Assertions.assertFalse(outcome.isSuccess());
-        Assertions.assertEquals(1, outcome.getAttempts());
-        Assertions.assertEquals(
-                Retryable.Outcome.TerminationReason.ABORTED_SKIP_RETRY_EXCEPTION,
-                outcome.getReason()
-        );
-        Assertions.assertInstanceOf(RuntimeException.class, outcome.getError());
-        Assertions.assertEquals(1, counter.get());
     }
 
     @Test
@@ -745,7 +659,6 @@ class RetryableTest {
 
         // Default behavior:
         // - exceptionPredicate = e -> false (don't retry any exception)
-        // - noRetryPredicate = e -> false (don't block any exception)
         // Result: no retries because exceptionPredicate rejects all exceptions
         Retryable<Integer> retryable = Retryable.<Integer>of(() -> {
             counter.incrementAndGet();
@@ -753,7 +666,7 @@ class RetryableTest {
         })
                 .maxRetries(3)
                 .baseDelay(0, TimeUnit.MILLISECONDS);
-        Retryable.Outcome<Integer> outcome = retryable.run();
+        Retryable.Outcome<Integer> outcome = retryable.call();
 
         Assertions.assertFalse(outcome.isSuccess());
         Assertions.assertEquals(1, outcome.getAttempts());
@@ -763,53 +676,5 @@ class RetryableTest {
         );
         Assertions.assertInstanceOf(IOException.class, outcome.getError());
         Assertions.assertEquals(1, counter.get());
-    }
-
-    @Test
-    @DisplayName("Should allow retries when noRetryExceptionPredicate predicate is set to always false")
-    void shouldAllowRetriesWhenNoRetryOnFailureIsSetToAlwaysFalse() {
-        AtomicInteger counter = new AtomicInteger();
-
-        Retryable<Integer> retryable = Retryable.<Integer>of(() -> {
-            counter.incrementAndGet();
-            throw new IOException("Should retry this");
-        })
-                .noRetryOnFailure(e -> false) // Never block retries
-                .retryOnFailure(e -> e instanceof IOException) // Allow retry on IOException
-                .maxRetries(2)
-                .baseDelay(0, TimeUnit.MILLISECONDS);
-
-        Retryable.Outcome<Integer> outcome = retryable.run();
-
-        Assertions.assertFalse(outcome.isSuccess());
-        Assertions.assertEquals(3, outcome.getAttempts());
-        Assertions.assertEquals(
-                Retryable.Outcome.TerminationReason.RETRIES_EXHAUSTED_RETRYABLE_EXCEPTION,
-                outcome.getReason()
-        );
-        Assertions.assertInstanceOf(IOException.class, outcome.getError());
-        Assertions.assertEquals(3, counter.get());
-    }
-
-    @Test
-    @DisplayName("Should propagate noRetryExceptionPredicate predicate exceptions without retry")
-    void shouldPropagateNoRetryExceptionPredicatePredicateExceptionsWithoutRetry() {
-        AtomicInteger taskCounter = new AtomicInteger();
-
-        Retryable<Integer> retryable = Retryable.<Integer>of(() -> {
-            taskCounter.incrementAndGet();
-            throw new IOException("Task failure");
-        })
-                .noRetryOnFailure(e -> {
-                    throw new IllegalStateException("noRetryExceptionPredicate predicate logic error");
-                })
-                .maxRetries(3);
-
-        IllegalStateException predicateException = Assertions.assertThrows(
-                IllegalStateException.class,
-                retryable::run
-        );
-        Assertions.assertEquals("noRetryExceptionPredicate predicate logic error", predicateException.getMessage());
-        Assertions.assertEquals(1, taskCounter.get());
     }
 }

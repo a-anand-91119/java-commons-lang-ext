@@ -313,4 +313,30 @@ public class Result<D, E> extends AbstractOutcome<D, E> {
     public Result<D, E> onFailure(Consumer<? super E> errorConsumer) {
         return onResult(null, errorConsumer);
     }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean equals(Object o) {
+        return super.equals(o);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String toString() {
+        return isFailure()
+                ? "Result.Failure[" + getError() + "]"
+                : "Result.Success[" + getData() + "]";
+    }
 }
