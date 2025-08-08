@@ -677,4 +677,50 @@ class RetryableTest {
         Assertions.assertInstanceOf(IOException.class, outcome.getError());
         Assertions.assertEquals(1, counter.get());
     }
+
+    @Test
+    void givenRetryable_whenRetryUntilResult_thenCorrectContextIsReturned() {
+        AtomicInteger counter = new AtomicInteger();
+        List<Integer> contextAttemptsValues = new ArrayList<>();
+        Retryable<String> retryable = Retryable.of(() -> {
+            int count = counter.incrementAndGet();
+            if (count < 3) {
+                return "Incorrect Result";
+            }
+            return "Correct Result";
+        })
+                .maxRetries(5)
+                .retryUntilResult((context, result) -> {
+                    contextAttemptsValues.add(context.getAttempt());
+                    return result.equals("Correct Result");
+                });
+        retryable.call();
+        Assertions.assertEquals(3, contextAttemptsValues.size());
+        for (int i = 0; i < contextAttemptsValues.size(); i++) {
+            Assertions.assertEquals(i + 1, contextAttemptsValues.get(i));
+        }
+    }
+
+    @Test
+    void givenRetryable_whenRetryOnFailure_thenCorrectContextIsReturned() {
+        AtomicInteger counter = new AtomicInteger();
+        List<Integer> contextAttemptsValues = new ArrayList<>();
+        Retryable<String> retryable = Retryable.of(() -> {
+            int count = counter.incrementAndGet();
+            if (count < 4) {
+                throw new IOException();
+            }
+            return "Correct Result";
+        })
+                .maxRetries(5)
+                .retryOnFailure((context, e) -> {
+                    contextAttemptsValues.add(context.getAttempt());
+                    return e instanceof IOException;
+                });
+        retryable.call();
+        Assertions.assertEquals(3, contextAttemptsValues.size());
+        for (int i = 0; i < contextAttemptsValues.size(); i++) {
+            Assertions.assertEquals(i + 1, contextAttemptsValues.get(i));
+        }
+    }
 }
