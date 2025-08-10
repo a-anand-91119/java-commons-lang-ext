@@ -13,6 +13,8 @@ import java.util.function.Function;
  * (on failure), but not both. Use static factory methods {@code ok} and
  * {@code error} to create instances of this class.
  *
+ * @author Shivam&nbsp;Nagpal
+ *
  * @param <D> the type of the data returned on success
  * @param <E> the type of the error object returned on failure
  */
@@ -310,5 +312,31 @@ public class Result<D, E> extends AbstractOutcome<D, E> {
      */
     public Result<D, E> onFailure(Consumer<? super E> errorConsumer) {
         return onResult(null, errorConsumer);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int hashCode() {
+        return super.hashCode();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean equals(Object o) {
+        return super.equals(o);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String toString() {
+        return isFailure()
+                ? "Result.Failure[" + getError() + "]"
+                : "Result.Success[" + getData() + "]";
     }
 }
