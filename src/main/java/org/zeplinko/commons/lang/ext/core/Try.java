@@ -1,6 +1,7 @@
 package org.zeplinko.commons.lang.ext.core;
 
 import jakarta.annotation.Nonnull;
+import org.zeplinko.commons.lang.ext.annotations.Preview;
 
 import java.util.Arrays;
 import java.util.Objects;
@@ -8,6 +9,7 @@ import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * An immutable container that captures the <em>successful</em> result of a
@@ -189,7 +191,7 @@ public class Try<T> extends AbstractOutcome<T, Exception> {
     ) {
         Objects.requireNonNull(successMapper);
         Objects.requireNonNull(failureMapper);
-        return isSuccess() ? successMapper.apply(getData()) : failureMapper.apply(getError());
+        return this.isFailure() ? failureMapper.apply(this.getError()) : successMapper.apply(this.getData());
     }
 
     /**
@@ -220,6 +222,35 @@ public class Try<T> extends AbstractOutcome<T, Exception> {
     }
 
     /**
+     * Attempts to recover from a failure if the error satisfies the predicated
+     * <p>
+     * If this Try is successful, returns it unchanged. If this Try contains an
+     * error that is doesn't satisfy the predicate, returns it unchanged. If this
+     * Try contains an error that satisfies the predicate, applies the failure
+     * mapper to attempt recovery.
+     * </p>
+     *
+     * @param predicate the predicate to test the error
+     * @param mapper    function to apply to the exception if it matches the
+     *                  specified type; should return a new Try representing the
+     *                  recovery attempt
+     * @return this Try if successful or if the error doesn't match the exception
+     *         type; otherwise the result of applying the failureMapper to the error
+     * @throws NullPointerException if predicate or failureMapper is null
+     */
+    public Try<T> recover(
+            Predicate<? super Exception> predicate,
+            Function<? super Exception, ? extends Try<T>> mapper
+    ) {
+        Objects.requireNonNull(predicate);
+        Objects.requireNonNull(mapper);
+        if (this.isFailure() && predicate.test(this.getError())) {
+            return mapper.apply(this.getError());
+        }
+        return compose(Try::success, Try::failure);
+    }
+
+    /**
      * Attempts to recover from a failure if the error matches the specified
      * exception type.
      * <p>
@@ -242,9 +273,8 @@ public class Try<T> extends AbstractOutcome<T, Exception> {
      * }
      * </pre>
      *
-     * @param <E>           the type of exception to recover from
      * @param exceptionType the class of the exception type to match against
-     * @param failureMapper function to apply to the exception if it matches the
+     * @param mapper        function to apply to the exception if it matches the
      *                      specified type; should return a new Try representing the
      *                      recovery attempt
      * @return this Try if successful or if the error doesn't match the exception
@@ -253,16 +283,13 @@ public class Try<T> extends AbstractOutcome<T, Exception> {
      * @see #recover(Function)
      * @see #recover(Function, Class[])
      */
-    public <E extends Exception> Try<T> recover(
-            Class<? extends E> exceptionType,
-            Function<? super Exception, ? extends Try<T>> failureMapper
+    public Try<T> recover(
+            Class<? extends Exception> exceptionType,
+            Function<? super Exception, ? extends Try<T>> mapper
     ) {
         Objects.requireNonNull(exceptionType);
-        Objects.requireNonNull(failureMapper);
-        if (isSuccess() || !exceptionType.isInstance(getError())) {
-            return this;
-        }
-        return failureMapper.apply(getError());
+        Objects.requireNonNull(mapper);
+        return recover(exceptionType::isInstance, mapper);
     }
 
     /**
@@ -313,8 +340,7 @@ public class Try<T> extends AbstractOutcome<T, Exception> {
      * }
      * </pre>
      *
-     * @param <E>            the type bound for exception types being recovered from
-     * @param failureMapper  function to apply to the exception if it matches any of
+     * @param mapper         function to apply to the exception if it matches any of
      *                       the specified types; should return a new Try
      *                       representing the recovery attempt
      * @param exceptionTypes varargs array of exception types to match against; null
@@ -327,20 +353,19 @@ public class Try<T> extends AbstractOutcome<T, Exception> {
      * @see #recover(Function)
      */
     @SafeVarargs
-    public final <E extends Exception> Try<T> recover(
-            Function<? super Exception, ? extends Try<T>> failureMapper,
-            Class<? extends E>... exceptionTypes
+    @Preview
+    public final Try<T> recover(
+            Function<? super Exception, ? extends Try<T>> mapper,
+            Class<? extends Exception>... exceptionTypes
     ) {
-        Objects.requireNonNull(failureMapper);
+        Objects.requireNonNull(mapper);
         Objects.requireNonNull(exceptionTypes);
-        if (
-            isSuccess() || Arrays.stream(exceptionTypes)
-                    .filter(Objects::nonNull)
-                    .noneMatch(exceptionType -> exceptionType.isInstance(getError()))
-        ) {
-            return this;
-        }
-        return failureMapper.apply(getError());
+        return recover(
+                e -> Arrays.stream(exceptionTypes)
+                        .filter(Objects::nonNull)
+                        .anyMatch(exceptionType -> exceptionType.isInstance(e)),
+                mapper
+        );
     }
 
     /**
@@ -407,6 +432,43 @@ public class Try<T> extends AbstractOutcome<T, Exception> {
 
     /**
      * Executes the provided consumer if this {@code Try} is a failure and the error
+     * satisfies the predicate.
+     * <p>
+     * If this Try is successful, nothing happens, and this Try is returned
+     * unchanged. If this Try contains an error that is doesn't satisfy the
+     * predicate, nothing happens, and this Try is returned unchanged. If this Try
+     * contains an error that satisfies the predicate, the error consumer is
+     * executed.
+     * </p>
+     *
+     * <p>
+     * This method is useful for handling specific exception types differently, such
+     * as logging at different levels, recording metrics, or performing
+     * type-specific cleanup operations.
+     * </p>
+     *
+     * @param predicate     the class of the exception type to match against
+     * @param errorConsumer consumer to execute if the error matches the specified
+     *                      type
+     * @return this Try instance for method chaining
+     * @throws NullPointerException if predicate is null
+     * @see #onFailure(Consumer)
+     * @see #onFailure(Consumer, Class[])
+     * @see #recover(Class, Function)
+     */
+    public Try<T> onFailure(
+            Predicate<? super Exception> predicate,
+            Consumer<? super Exception> errorConsumer
+    ) {
+        Objects.requireNonNull(predicate);
+        if (isFailure() && predicate.test(getError())) {
+            return onHandle(null, errorConsumer);
+        }
+        return this;
+    }
+
+    /**
+     * Executes the provided consumer if this {@code Try} is a failure and the error
      * matches the specified exception type.
      * <p>
      * If this Try is successful, nothing happens, and this Try is returned
@@ -442,26 +504,21 @@ public class Try<T> extends AbstractOutcome<T, Exception> {
      * }
      * </pre>
      *
-     * @param <E>           the type of exception to handle
      * @param exceptionType the class of the exception type to match against
      * @param errorConsumer consumer to execute if the error matches the specified
      *                      type
      * @return this Try instance for method chaining
-     * @throws NullPointerException if exceptionType or errorConsumer is null
+     * @throws NullPointerException if exceptionType is null
      * @see #onFailure(Consumer)
      * @see #onFailure(Consumer, Class[])
      * @see #recover(Class, Function)
      */
-    public <E extends Exception> Try<T> onFailure(
-            Class<? extends E> exceptionType,
+    public Try<T> onFailure(
+            Class<? extends Exception> exceptionType,
             Consumer<? super Exception> errorConsumer
     ) {
         Objects.requireNonNull(exceptionType);
-        Objects.requireNonNull(errorConsumer);
-        if (isFailure() && exceptionType.isInstance(getError())) {
-            errorConsumer.accept(getError());
-        }
-        return this;
+        return onFailure(exceptionType::isInstance, errorConsumer);
     }
 
     /**
@@ -513,33 +570,29 @@ public class Try<T> extends AbstractOutcome<T, Exception> {
      * }
      * </pre>
      *
-     * @param <E>            the type bound for exception types being handled
      * @param errorConsumer  consumer to execute if the error matches any of the
      *                       specified types
      * @param exceptionTypes varargs array of exception types to match against; null
      *                       elements are ignored
      * @return this Try instance for method chaining
-     * @throws NullPointerException if errorConsumer or exceptionTypes array itself
-     *                              is null
+     * @throws NullPointerException if exceptionTypes array itself is null
      * @see #onFailure(Consumer)
      * @see #onFailure(Class, Consumer)
      * @see #recover(Function, Class[])
      */
     @SafeVarargs
-    public final <E extends Exception> Try<T> onFailure(
+    @Preview
+    public final Try<T> onFailure(
             Consumer<? super Exception> errorConsumer,
-            Class<? extends E>... exceptionTypes
+            Class<? extends Exception>... exceptionTypes
     ) {
-        Objects.requireNonNull(errorConsumer);
         Objects.requireNonNull(exceptionTypes);
-        if (
-            isFailure() && Arrays.stream(exceptionTypes)
-                    .filter(Objects::nonNull)
-                    .anyMatch(exceptionType -> exceptionType.isInstance(getError()))
-        ) {
-            errorConsumer.accept(getError());
-        }
-        return this;
+        return onFailure(
+                e -> Arrays.stream(exceptionTypes)
+                        .filter(Objects::nonNull)
+                        .anyMatch(exceptionType -> exceptionType.isInstance(e)),
+                errorConsumer
+        );
     }
 
     /**
