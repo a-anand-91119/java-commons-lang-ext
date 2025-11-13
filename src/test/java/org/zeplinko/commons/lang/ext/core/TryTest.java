@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Callable;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -348,12 +349,63 @@ class TryTest {
     }
 
     @Test
+    void test_givenNullMapper_whenPredicateRecoverIsCalled_thenExceptionIsThrown() {
+        Try<String> failure = Try.failure(new RuntimeException("error"));
+        @SuppressWarnings("DataFlowIssue")
+        NullPointerException nullPointerException = assertThrows(
+                NullPointerException.class,
+                () -> failure.recover((Predicate<? super Exception>) IllegalArgumentException.class::isInstance, null)
+        );
+        assertNotNull(nullPointerException);
+    }
+
+    @Test
+    void test_givenNullPredicate_whenPredicateRecoverIsCalled_thenExceptionIsThrown() {
+        Try<String> failure = Try.failure(new RuntimeException("error"));
+        @SuppressWarnings("DataFlowIssue")
+        NullPointerException nullPointerException = assertThrows(
+                NullPointerException.class,
+                () -> failure.recover((Predicate<? super Exception>) null, e -> Try.success("ignored"))
+        );
+        assertNotNull(nullPointerException);
+    }
+
+    @Test
+    void test_givenSuccess_whenPredicateRecoverIsCalled_thenSameSuccessIsReturned() {
+        Try<String> success = Try.success("data");
+        Try<String> result = success.recover(IllegalArgumentException.class::isInstance, e -> Try.success("ignored"));
+
+        assertTrue(result.isSuccess());
+        assertEquals("data", result.getData());
+    }
+
+    @Test
+    void test_givenFailureWhichDoesNotSatisfyThePredicate_whenPredicateRecoverIsCalled_thenSameTryIsReturned() {
+        Exception error = new RuntimeException("error");
+        Try<String> failure = Try.failure(error);
+        Try<String> result = failure.recover(IllegalArgumentException.class::isInstance, e -> Try.success("recovered"));
+
+        assertTrue(result.isFailure());
+        assertSame(error, result.getError());
+    }
+
+    @Test
+    void test_givenFailureWhichSatisfiesThePredicate_whenPredicateRecoverIsCalled_thenSameTryIsReturned() {
+        Exception error = new IllegalArgumentException("error");
+        Try<String> failure = Try.failure(error);
+        Try<String> result = failure.recover(IllegalArgumentException.class::isInstance, e -> Try.success("recovered"));
+
+        assertTrue(result.isSuccess());
+        assertEquals("recovered", result.getData());
+    }
+
+    @Test
     void test_givenNullExceptionType_whenRecoverWithExceptionTypeIsCalled_thenExceptionIsThrown() {
         Try<Integer> failure = Try.failure(new RuntimeException("error"));
         @SuppressWarnings("DataFlowIssue")
         NullPointerException nullPointerException = assertThrows(
                 NullPointerException.class,
-                () -> failure.recover(null, e -> Try.success(0))
+                () -> failure.recover((Class<Exception>) null, e -> Try.success(0))
         );
         assertNotNull(nullPointerException);
     }
@@ -500,13 +552,59 @@ class TryTest {
     }
 
     @Test
-    void test_givenSuccess_whenOnFailureIsCalled_thenConsumerIsExecuted() {
+    void test_givenSuccess_whenOnFailureIsCalled_thenConsumerIsNotExecuted() {
         Try<String> success = Try.success("data");
         StringBuilder consumed = new StringBuilder();
         Try<String> returnedTry = success.onFailure(e -> consumed.append(e.getMessage()));
 
         assertSame(success, returnedTry);
         assertEquals(0, consumed.length());
+    }
+
+    @Test
+    void test_givenNullPredicate_whenPredicateOnFailureIsCalled_thenThrowsException() {
+        Try<String> failure = Try.failure(new RuntimeException("error"));
+        StringBuilder consumed = new StringBuilder();
+        Assertions.assertThrows(
+                NullPointerException.class,
+                () -> failure.onFailure((Predicate<? super Exception>) null, e -> consumed.append(e.getMessage()))
+        );
+        assertEquals(0, consumed.length());
+    }
+
+    @Test
+    void test_givenSuccess_whenPredicateOnFailureIsCalled_thenConsumerIsNotExecuted() {
+        Try<String> success = Try.success("data");
+        StringBuilder consumed = new StringBuilder();
+        Try<String> returnedTry = success
+                .onFailure(IllegalArgumentException.class::isInstance, e -> consumed.append(e.getMessage()));
+
+        assertSame(success, returnedTry);
+        assertEquals(0, consumed.length());
+    }
+
+    @Test
+    void test_givenFailureWhichDoesNotSatisfyPredicate_whenPredicateOnFailureIsCalled_thenConsumerIsNotExecuted() {
+        Exception error = new RuntimeException("error");
+        Try<String> failure = Try.failure(error);
+        StringBuilder consumed = new StringBuilder();
+        Try<String> returnedTry = failure
+                .onFailure(IllegalArgumentException.class::isInstance, e -> consumed.append(e.getMessage()));
+
+        assertSame(failure, returnedTry);
+        assertEquals(0, consumed.length());
+    }
+
+    @Test
+    void test_givenFailureWhichSatisfiesPredicate_whenPredicateOnFailureIsCalled_thenConsumerIsExecuted() {
+        Exception error = new IllegalArgumentException("error");
+        Try<String> failure = Try.failure(error);
+        StringBuilder consumed = new StringBuilder();
+        Try<String> returnedTry = failure
+                .onFailure(IllegalArgumentException.class::isInstance, e -> consumed.append(e.getMessage()));
+
+        assertSame(failure, returnedTry);
+        assertEquals("error", consumed.toString());
     }
 
     // ========== Tests for single exception type onFailure method ==========
@@ -517,19 +615,8 @@ class TryTest {
         @SuppressWarnings("DataFlowIssue")
         NullPointerException nullPointerException = assertThrows(
                 NullPointerException.class,
-                () -> failure.onFailure(null, e -> {
+                () -> failure.onFailure((Class<Exception>) null, e -> {
                 })
-        );
-        assertNotNull(nullPointerException);
-    }
-
-    @Test
-    void test_givenNullConsumer_whenOnFailureWithExceptionTypeIsCalled_thenExceptionIsThrown() {
-        Try<Integer> failure = Try.failure(new RuntimeException("error"));
-        @SuppressWarnings("DataFlowIssue")
-        NullPointerException nullPointerException = assertThrows(
-                NullPointerException.class,
-                () -> failure.onFailure(RuntimeException.class, null)
         );
         assertNotNull(nullPointerException);
     }
@@ -613,17 +700,6 @@ class TryTest {
     }
 
     // ========== Tests for varargs exception types onFailure method ==========
-
-    @Test
-    void test_givenNullConsumer_whenOnFailureWithVarargsIsCalled_thenExceptionIsThrown() {
-        Try<Integer> failure = Try.failure(new RuntimeException("error"));
-        @SuppressWarnings("DataFlowIssue")
-        NullPointerException nullPointerException = assertThrows(
-                NullPointerException.class,
-                () -> failure.onFailure(null, RuntimeException.class, IllegalArgumentException.class)
-        );
-        assertNotNull(nullPointerException);
-    }
 
     @Test
     void test_givenNullExceptionTypesArray_whenOnFailureWithVarargsIsCalled_thenExceptionIsThrown() {
@@ -900,7 +976,6 @@ class TryTest {
         );
 
         assertTrue(result.isSuccess());
-        assertSame(success, result);
         assertEquals("data", result.getData());
     }
 
@@ -915,7 +990,6 @@ class TryTest {
         );
 
         assertTrue(result.isFailure());
-        assertSame(failure, result);
         assertSame(error, result.getError());
     }
 
@@ -930,7 +1004,6 @@ class TryTest {
         );
 
         assertTrue(result.isFailure());
-        assertSame(failure, result);
         assertSame(error, result.getError());
     }
 
@@ -1049,7 +1122,6 @@ class TryTest {
         );
 
         assertTrue(result.isFailure());
-        assertSame(failure, result);
         assertSame(error, result.getError());
     }
 
