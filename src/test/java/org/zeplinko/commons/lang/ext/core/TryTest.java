@@ -1187,4 +1187,356 @@ class TryTest {
         String actualToString = tryObject.toString();
         Assertions.assertEquals(expectedToString, actualToString);
     }
+
+    @Test
+    void test_whenRunIsCalledWithNullRunnable_thenExceptionIsThrown() {
+        @SuppressWarnings("DataFlowIssue")
+        NullPointerException exception = assertThrows(NullPointerException.class, () -> Try.run(null));
+        assertNotNull(exception);
+    }
+
+    @Test
+    void test_whenRunIsCalledWithRunnableThatSucceeds_thenSuccessTryWithEmptyIsReturned() {
+        List<String> sideEffect = new ArrayList<>();
+
+        Try<Empty> result = Try.run(() -> sideEffect.add("executed"));
+
+        assertTrue(result.isSuccess());
+        assertSame(Empty.getInstance(), result.getData());
+        assertEquals(1, sideEffect.size());
+        assertEquals("executed", sideEffect.get(0));
+    }
+
+    @Test
+    void test_whenRunIsCalledWithRunnableThatThrowsException_thenFailureTryIsReturned() {
+        RuntimeException expectedError = new RuntimeException("run failed");
+
+        Try<Empty> result = Try.run(() -> {
+            throw expectedError;
+        });
+
+        assertTrue(result.isFailure());
+        assertSame(expectedError, result.getError());
+    }
+
+    @Test
+    void test_whenRunIsCalledWithRunnableThatThrowsInterruptedException_thenFailureTryIsReturned() {
+        InterruptedException expectedError = new InterruptedException("interrupted");
+
+        Try<Empty> result = Try.run(() -> {
+            throw expectedError;
+        });
+
+        assertTrue(result.isFailure());
+        assertSame(expectedError, result.getError());
+        assertTrue(Thread.currentThread().isInterrupted());
+        Thread.interrupted();
+    }
+
+    @Test
+    void test_whenWithResourcesIsCalledWithNullSupplier_thenExceptionIsThrown() {
+        @SuppressWarnings("DataFlowIssue")
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> Try.withResources(null, r -> "result")
+        );
+        assertNotNull(exception);
+    }
+
+    @Test
+    void test_whenWithResourcesIsCalledWithNullAction_thenExceptionIsThrown() {
+        @SuppressWarnings("DataFlowIssue")
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> Try.withResources(() -> new TestResource(), null)
+        );
+        assertNotNull(exception);
+    }
+
+    @Test
+    void test_whenWithResourcesSucceeds_thenSuccessTryIsReturnedAndResourceIsClosed() {
+        TestResource resource = new TestResource();
+
+        Try<String> result = Try.withResources(() -> resource, r -> "success");
+
+        assertTrue(result.isSuccess());
+        assertEquals("success", result.getData());
+        assertTrue(resource.isClosed());
+    }
+
+    @Test
+    void test_whenWithResourcesSupplierThrowsException_thenFailureTryIsReturned() {
+        RuntimeException expectedError = new RuntimeException("supplier failed");
+
+        Try<String> result = Try.withResources(
+                () -> {
+                    throw expectedError;
+                },
+                r -> "success"
+        );
+
+        assertTrue(result.isFailure());
+        assertSame(expectedError, result.getError());
+    }
+
+    @Test
+    void test_whenWithResourcesActionThrowsException_thenFailureTryIsReturnedAndResourceIsClosed() {
+        TestResource resource = new TestResource();
+        RuntimeException expectedError = new RuntimeException("action failed");
+
+        Try<String> result = Try.withResources(
+                () -> resource,
+                r -> {
+                    throw expectedError;
+                }
+        );
+
+        assertTrue(result.isFailure());
+        assertSame(expectedError, result.getError());
+        assertTrue(resource.isClosed());
+    }
+
+    @Test
+    void test_whenWithResourcesActionThrowsInterruptedException_thenFailureTryIsReturned() {
+        TestResource resource = new TestResource();
+        InterruptedException expectedError = new InterruptedException("interrupted");
+
+        Try<String> result = Try.withResources(
+                () -> resource,
+                r -> {
+                    throw expectedError;
+                }
+        );
+
+        assertTrue(result.isFailure());
+        assertSame(expectedError, result.getError());
+        assertTrue(resource.isClosed());
+        assertTrue(Thread.currentThread().isInterrupted());
+        Thread.interrupted();
+    }
+
+    @Test
+    void test_whenWithResourcesTwoIsCalledWithNullFirstSupplier_thenExceptionIsThrown() {
+        @SuppressWarnings("DataFlowIssue")
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> Try.withResources(null, () -> new TestResource(), (r1, r2) -> "result")
+        );
+        assertNotNull(exception);
+    }
+
+    @Test
+    void test_whenWithResourcesTwoIsCalledWithNullSecondSupplier_thenExceptionIsThrown() {
+        @SuppressWarnings("DataFlowIssue")
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> Try.withResources(() -> new TestResource(), null, (r1, r2) -> "result")
+        );
+        assertNotNull(exception);
+    }
+
+    @Test
+    void test_whenWithResourcesTwoIsCalledWithNullAction_thenExceptionIsThrown() {
+        @SuppressWarnings("DataFlowIssue")
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> Try.withResources(() -> new TestResource(), () -> new TestResource(), null)
+        );
+        assertNotNull(exception);
+    }
+
+    @Test
+    void test_whenWithResourcesTwoSucceeds_thenSuccessTryIsReturnedAndBothResourcesAreClosed() {
+        TestResource resource1 = new TestResource();
+        TestResource resource2 = new TestResource();
+
+        Try<String> result = Try.withResources(
+                () -> resource1,
+                () -> resource2,
+                (r1, r2) -> "success"
+        );
+
+        assertTrue(result.isSuccess());
+        assertEquals("success", result.getData());
+        assertTrue(resource1.isClosed());
+        assertTrue(resource2.isClosed());
+    }
+
+    @Test
+    void test_whenWithResourcesTwoFirstSupplierThrows_thenFailureTryIsReturned() {
+        RuntimeException expectedError = new RuntimeException("first supplier failed");
+
+        Try<String> result = Try.withResources(
+                () -> {
+                    throw expectedError;
+                },
+                () -> new TestResource(),
+                (r1, r2) -> "success"
+        );
+
+        assertTrue(result.isFailure());
+        assertSame(expectedError, result.getError());
+    }
+
+    @Test
+    void test_whenWithResourcesTwoSecondSupplierThrows_thenFailureTryIsReturnedAndFirstResourceIsClosed() {
+        TestResource resource1 = new TestResource();
+        RuntimeException expectedError = new RuntimeException("second supplier failed");
+
+        Try<String> result = Try.withResources(
+                () -> resource1,
+                () -> {
+                    throw expectedError;
+                },
+                (r1, r2) -> "success"
+        );
+
+        assertTrue(result.isFailure());
+        assertSame(expectedError, result.getError());
+        assertTrue(resource1.isClosed());
+    }
+
+    @Test
+    void test_whenWithResourcesTwoActionThrows_thenFailureTryIsReturnedAndBothResourcesAreClosed() {
+        TestResource resource1 = new TestResource();
+        TestResource resource2 = new TestResource();
+        RuntimeException expectedError = new RuntimeException("action failed");
+
+        Try<String> result = Try.withResources(
+                () -> resource1,
+                () -> resource2,
+                (r1, r2) -> {
+                    throw expectedError;
+                }
+        );
+
+        assertTrue(result.isFailure());
+        assertSame(expectedError, result.getError());
+        assertTrue(resource1.isClosed());
+        assertTrue(resource2.isClosed());
+    }
+
+    @Test
+    void test_whenWithResourcesTwoActionThrowsInterruptedException_thenFailureTryIsReturned() {
+        TestResource resource1 = new TestResource();
+        TestResource resource2 = new TestResource();
+        InterruptedException expectedError = new InterruptedException("interrupted");
+
+        Try<String> result = Try.withResources(
+                () -> resource1,
+                () -> resource2,
+                (r1, r2) -> {
+                    throw expectedError;
+                }
+        );
+
+        assertTrue(result.isFailure());
+        assertSame(expectedError, result.getError());
+        assertTrue(resource1.isClosed());
+        assertTrue(resource2.isClosed());
+        assertTrue(Thread.currentThread().isInterrupted());
+        Thread.interrupted();
+    }
+
+    @Test
+    void test_whenConsumeResourceIsCalledWithNullSupplier_thenExceptionIsThrown() {
+        @SuppressWarnings("DataFlowIssue")
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> Try.consumeResource(null, r -> {
+                })
+        );
+        assertNotNull(exception);
+    }
+
+    @Test
+    void test_whenConsumeResourceIsCalledWithNullAction_thenExceptionIsThrown() {
+        @SuppressWarnings("DataFlowIssue")
+        NullPointerException exception = assertThrows(
+                NullPointerException.class,
+                () -> Try.consumeResource(() -> new TestResource(), null)
+        );
+        assertNotNull(exception);
+    }
+
+    @Test
+    void test_whenConsumeResourceSucceeds_thenSuccessTryWithEmptyIsReturnedAndResourceIsClosed() {
+        TestResource resource = new TestResource();
+        List<String> sideEffect = new ArrayList<>();
+
+        Try<Empty> result = Try.consumeResource(
+                () -> resource,
+                r -> sideEffect.add("consumed")
+        );
+
+        assertTrue(result.isSuccess());
+        assertSame(Empty.getInstance(), result.getData());
+        assertTrue(resource.isClosed());
+        assertEquals(1, sideEffect.size());
+    }
+
+    @Test
+    void test_whenConsumeResourceSupplierThrows_thenFailureTryIsReturned() {
+        RuntimeException expectedError = new RuntimeException("supplier failed");
+
+        Try<Empty> result = Try.consumeResource(
+                () -> {
+                    throw expectedError;
+                },
+                r -> {
+                }
+        );
+
+        assertTrue(result.isFailure());
+        assertSame(expectedError, result.getError());
+    }
+
+    @Test
+    void test_whenConsumeResourceActionThrows_thenFailureTryIsReturnedAndResourceIsClosed() {
+        TestResource resource = new TestResource();
+        RuntimeException expectedError = new RuntimeException("action failed");
+
+        Try<Empty> result = Try.consumeResource(
+                () -> resource,
+                r -> {
+                    throw expectedError;
+                }
+        );
+
+        assertTrue(result.isFailure());
+        assertSame(expectedError, result.getError());
+        assertTrue(resource.isClosed());
+    }
+
+    @Test
+    void test_whenConsumeResourceActionThrowsInterruptedException_thenFailureTryIsReturned() {
+        TestResource resource = new TestResource();
+        InterruptedException expectedError = new InterruptedException("interrupted");
+
+        Try<Empty> result = Try.consumeResource(
+                () -> resource,
+                r -> {
+                    throw expectedError;
+                }
+        );
+
+        assertTrue(result.isFailure());
+        assertSame(expectedError, result.getError());
+        assertTrue(resource.isClosed());
+        assertTrue(Thread.currentThread().isInterrupted());
+        Thread.interrupted();
+    }
+
+    private static class TestResource implements AutoCloseable {
+        private boolean closed = false;
+
+        @Override
+        public void close() {
+            closed = true;
+        }
+
+        public boolean isClosed() {
+            return closed;
+        }
+    }
 }
