@@ -351,7 +351,6 @@ class TryTest {
     @Test
     void test_givenNullMapper_whenPredicateRecoverIsCalled_thenExceptionIsThrown() {
         Try<String> failure = Try.failure(new RuntimeException("error"));
-        @SuppressWarnings("DataFlowIssue")
         NullPointerException nullPointerException = assertThrows(
                 NullPointerException.class,
                 () -> failure.recover((Predicate<? super Exception>) IllegalArgumentException.class::isInstance, null)
@@ -362,7 +361,6 @@ class TryTest {
     @Test
     void test_givenNullPredicate_whenPredicateRecoverIsCalled_thenExceptionIsThrown() {
         Try<String> failure = Try.failure(new RuntimeException("error"));
-        @SuppressWarnings("DataFlowIssue")
         NullPointerException nullPointerException = assertThrows(
                 NullPointerException.class,
                 () -> failure.recover((Predicate<? super Exception>) null, e -> Try.success("ignored"))
@@ -402,7 +400,6 @@ class TryTest {
     @Test
     void test_givenNullExceptionType_whenRecoverWithExceptionTypeIsCalled_thenExceptionIsThrown() {
         Try<Integer> failure = Try.failure(new RuntimeException("error"));
-        @SuppressWarnings("DataFlowIssue")
         NullPointerException nullPointerException = assertThrows(
                 NullPointerException.class,
                 () -> failure.recover((Class<Exception>) null, e -> Try.success(0))
@@ -612,7 +609,6 @@ class TryTest {
     @Test
     void test_givenNullExceptionType_whenOnFailureWithExceptionTypeIsCalled_thenExceptionIsThrown() {
         Try<Integer> failure = Try.failure(new RuntimeException("error"));
-        @SuppressWarnings("DataFlowIssue")
         NullPointerException nullPointerException = assertThrows(
                 NullPointerException.class,
                 () -> failure.onFailure((Class<Exception>) null, e -> {
@@ -704,7 +700,6 @@ class TryTest {
     @Test
     void test_givenNullExceptionTypesArray_whenOnFailureWithVarargsIsCalled_thenExceptionIsThrown() {
         Try<Integer> failure = Try.failure(new RuntimeException("error"));
-        @SuppressWarnings({ "DataFlowIssue", "unchecked" })
         NullPointerException nullPointerException = assertThrows(
                 NullPointerException.class,
                 () -> failure.onFailure(e -> {
@@ -838,7 +833,6 @@ class TryTest {
         Exception error = new IllegalArgumentException("error");
         Try<String> failure = Try.failure(error);
         StringBuilder consumed = new StringBuilder();
-        @SuppressWarnings("unchecked")
         Try<String> returnedTry = failure.onFailure(
                 e -> consumed.append(e.getMessage()),
                 null,
@@ -855,7 +849,6 @@ class TryTest {
         Exception error = new IllegalArgumentException("error");
         Try<String> failure = Try.failure(error);
         StringBuilder consumed = new StringBuilder();
-        @SuppressWarnings("unchecked")
         Try<String> returnedTry = failure.onFailure(
                 e -> consumed.append(e.getMessage()),
                 null,
@@ -947,7 +940,6 @@ class TryTest {
     @Test
     void test_givenNullFailureMapper_whenRecoverWithVarargsIsCalled_thenExceptionIsThrown() {
         Try<Integer> failure = Try.failure(new RuntimeException("error"));
-        @SuppressWarnings("DataFlowIssue")
         NullPointerException nullPointerException = assertThrows(
                 NullPointerException.class,
                 () -> failure.recover(null, RuntimeException.class, IllegalArgumentException.class)
@@ -958,7 +950,6 @@ class TryTest {
     @Test
     void test_givenNullExceptionTypesArray_whenRecoverWithVarargsIsCalled_thenExceptionIsThrown() {
         Try<Integer> failure = Try.failure(new RuntimeException("error"));
-        @SuppressWarnings({ "DataFlowIssue", "unchecked" })
         NullPointerException nullPointerException = assertThrows(
                 NullPointerException.class,
                 () -> failure.recover(e -> Try.success(0), (Class<? extends Exception>[]) null)
@@ -1098,7 +1089,6 @@ class TryTest {
     void test_givenFailureAndNullExceptionTypesInVarargs_whenRecoverWithVarargsIsCalled_thenNullsAreIgnored() {
         Exception error = new IllegalArgumentException("error");
         Try<String> failure = Try.failure(error);
-        @SuppressWarnings("unchecked")
         Try<String> result = failure.recover(
                 e -> Try.success("recovered"),
                 null,
@@ -1114,7 +1104,6 @@ class TryTest {
     void test_givenFailureAndAllNullExceptionTypesInVarargs_whenRecoverWithVarargsIsCalled_thenSameFailureIsReturned() {
         Exception error = new IllegalArgumentException("error");
         Try<String> failure = Try.failure(error);
-        @SuppressWarnings("unchecked")
         Try<String> result = failure.recover(
                 e -> Try.success("recovered"),
                 null,
@@ -1221,16 +1210,19 @@ class TryTest {
 
     @Test
     void test_whenRunIsCalledWithRunnableThatThrowsInterruptedException_thenFailureTryIsReturned() {
-        InterruptedException expectedError = new InterruptedException("interrupted");
+        try {
+            InterruptedException expectedError = new InterruptedException("interrupted");
 
-        Try<Empty> result = Try.run(() -> {
-            throw expectedError;
-        });
+            Try<Empty> result = Try.run(() -> {
+                throw expectedError;
+            });
 
-        assertTrue(result.isFailure());
-        assertSame(expectedError, result.getError());
-        assertTrue(Thread.currentThread().isInterrupted());
-        Thread.interrupted();
+            assertTrue(result.isFailure());
+            assertSame(expectedError, result.getError());
+            assertTrue(Thread.currentThread().isInterrupted());
+        } finally {
+            Thread.interrupted();
+        }
     }
 
     @Test
@@ -1248,7 +1240,7 @@ class TryTest {
         @SuppressWarnings("DataFlowIssue")
         NullPointerException exception = assertThrows(
                 NullPointerException.class,
-                () -> Try.withResources(() -> new TestResource(), null)
+                () -> Try.withResources(TestResource::new, null)
         );
         assertNotNull(exception);
     }
@@ -1298,21 +1290,24 @@ class TryTest {
 
     @Test
     void test_whenWithResourcesActionThrowsInterruptedException_thenFailureTryIsReturned() {
-        TestResource resource = new TestResource();
-        InterruptedException expectedError = new InterruptedException("interrupted");
+        try {
+            TestResource resource = new TestResource();
+            InterruptedException expectedError = new InterruptedException("interrupted");
 
-        Try<String> result = Try.withResources(
-                () -> resource,
-                r -> {
-                    throw expectedError;
-                }
-        );
+            Try<String> result = Try.withResources(
+                    () -> resource,
+                    r -> {
+                        throw expectedError;
+                    }
+            );
 
-        assertTrue(result.isFailure());
-        assertSame(expectedError, result.getError());
-        assertTrue(resource.isClosed());
-        assertTrue(Thread.currentThread().isInterrupted());
-        Thread.interrupted();
+            assertTrue(result.isFailure());
+            assertSame(expectedError, result.getError());
+            assertTrue(resource.isClosed());
+            assertTrue(Thread.currentThread().isInterrupted());
+        } finally {
+            Thread.interrupted();
+        }
     }
 
     @Test
@@ -1320,7 +1315,7 @@ class TryTest {
         @SuppressWarnings("DataFlowIssue")
         NullPointerException exception = assertThrows(
                 NullPointerException.class,
-                () -> Try.withResources(null, () -> new TestResource(), (r1, r2) -> "result")
+                () -> Try.withResources(null, TestResource::new, (r1, r2) -> "result")
         );
         assertNotNull(exception);
     }
@@ -1330,7 +1325,7 @@ class TryTest {
         @SuppressWarnings("DataFlowIssue")
         NullPointerException exception = assertThrows(
                 NullPointerException.class,
-                () -> Try.withResources(() -> new TestResource(), null, (r1, r2) -> "result")
+                () -> Try.withResources(TestResource::new, null, (r1, r2) -> "result")
         );
         assertNotNull(exception);
     }
@@ -1340,7 +1335,7 @@ class TryTest {
         @SuppressWarnings("DataFlowIssue")
         NullPointerException exception = assertThrows(
                 NullPointerException.class,
-                () -> Try.withResources(() -> new TestResource(), () -> new TestResource(), null)
+                () -> Try.withResources(TestResource::new, TestResource::new, null)
         );
         assertNotNull(exception);
     }
@@ -1370,7 +1365,7 @@ class TryTest {
                 () -> {
                     throw expectedError;
                 },
-                () -> new TestResource(),
+                TestResource::new,
                 (r1, r2) -> "success"
         );
 
@@ -1418,24 +1413,27 @@ class TryTest {
 
     @Test
     void test_whenWithResourcesTwoActionThrowsInterruptedException_thenFailureTryIsReturned() {
-        TestResource resource1 = new TestResource();
-        TestResource resource2 = new TestResource();
-        InterruptedException expectedError = new InterruptedException("interrupted");
+        try {
+            TestResource resource1 = new TestResource();
+            TestResource resource2 = new TestResource();
+            InterruptedException expectedError = new InterruptedException("interrupted");
 
-        Try<String> result = Try.withResources(
-                () -> resource1,
-                () -> resource2,
-                (r1, r2) -> {
-                    throw expectedError;
-                }
-        );
+            Try<String> result = Try.withResources(
+                    () -> resource1,
+                    () -> resource2,
+                    (r1, r2) -> {
+                        throw expectedError;
+                    }
+            );
 
-        assertTrue(result.isFailure());
-        assertSame(expectedError, result.getError());
-        assertTrue(resource1.isClosed());
-        assertTrue(resource2.isClosed());
-        assertTrue(Thread.currentThread().isInterrupted());
-        Thread.interrupted();
+            assertTrue(result.isFailure());
+            assertSame(expectedError, result.getError());
+            assertTrue(resource1.isClosed());
+            assertTrue(resource2.isClosed());
+            assertTrue(Thread.currentThread().isInterrupted());
+        } finally {
+            Thread.interrupted();
+        }
     }
 
     @Test
@@ -1454,7 +1452,7 @@ class TryTest {
         @SuppressWarnings("DataFlowIssue")
         NullPointerException exception = assertThrows(
                 NullPointerException.class,
-                () -> Try.consumeResource(() -> new TestResource(), null)
+                () -> Try.consumeResource(TestResource::new, null)
         );
         assertNotNull(exception);
     }
@@ -1510,21 +1508,24 @@ class TryTest {
 
     @Test
     void test_whenConsumeResourceActionThrowsInterruptedException_thenFailureTryIsReturned() {
-        TestResource resource = new TestResource();
-        InterruptedException expectedError = new InterruptedException("interrupted");
+        try {
+            TestResource resource = new TestResource();
+            InterruptedException expectedError = new InterruptedException("interrupted");
 
-        Try<Empty> result = Try.consumeResource(
-                () -> resource,
-                r -> {
-                    throw expectedError;
-                }
-        );
+            Try<Empty> result = Try.consumeResource(
+                    () -> resource,
+                    r -> {
+                        throw expectedError;
+                    }
+            );
 
-        assertTrue(result.isFailure());
-        assertSame(expectedError, result.getError());
-        assertTrue(resource.isClosed());
-        assertTrue(Thread.currentThread().isInterrupted());
-        Thread.interrupted();
+            assertTrue(result.isFailure());
+            assertSame(expectedError, result.getError());
+            assertTrue(resource.isClosed());
+            assertTrue(Thread.currentThread().isInterrupted());
+        } finally {
+            Thread.interrupted();
+        }
     }
 
     private static class TestResource implements AutoCloseable {
